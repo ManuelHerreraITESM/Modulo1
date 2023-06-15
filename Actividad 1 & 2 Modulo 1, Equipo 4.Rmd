@@ -1,0 +1,680 @@
+---
+title: "Actividad 1 & 2 Modulo 1, Equipo 4"
+output:
+  html_document:
+    df_print: paged
+    toc: true
+    theme: united
+    
+---
+
+```{r libs, include=FALSE}
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(tmap)
+library(ggmap)
+```
+
+
+```{r include=FALSE}
+hospitales <- read.csv("C:\\Users\\art191127\\Documents\\Tec de Monterrey\\Semestre 8\\Clase 2\\Saucedo\\denue_hospitales.csv")
+covid <- read.csv("C:\\Users\\art191127\\Documents\\Tec de Monterrey\\Semestre 8\\Clase 2\\Saucedo\\covid19_confirmados.csv")
+```
+
+## Descripción del problema
+Tenemos dos bases de datos: Una base es un índice con todos los hospitales y lugares de servicios de salud disponibles en México, y en la otra tenemos los datos de los contagios de COVID 19 durante el 2020 y el 2021. Se busca hacer una análisis de Autocorrelación Espacial en un mapa de México, tomando en cuenta los hospitales y otras variables de posible interés. 
+
+### Visualización de las bases de datos
+
+```{r}
+head(hospitales, 3)
+head(covid, 3)
+```
+
+```{r}
+hospitales$cve_ent <- substr(hospitales$clee, 1, 5)
+
+covid$cve_ent <- as.character(covid$cve_ent)
+covid$cve_ent <- ifelse(str_length(covid$cve_ent) == 4, paste("0",covid$cve_ent, sep = ""),covid$cve_ent)
+```
+
+### Uniendo las bases de datos. 
+
+```{r, echo=FALSE}
+unique(hospitales$codigo_act)
+unique(hospitales$nombre_act)
+```
+
+```{r}
+hospitalesFiltered <- filter(hospitales, codigo_act != 624191 & codigo_act !=
+                               623311 & codigo_act !=
+                               621331 & codigo_act !=
+                               624198 & codigo_act !=
+                               621311 & codigo_act !=
+                               623991 & codigo_act !=
+                               623992 & codigo_act !=
+                               624221 & codigo_act !=
+                               624112 & codigo_act !=
+                               624111 & codigo_act !=
+                               624311 & codigo_act !=
+                               622311 & codigo_act !=
+                               624411 & codigo_act !=
+                               624412 & codigo_act !=
+                               624122 & codigo_act !=
+                               624222 & codigo_act !=
+                               624312 & codigo_act !=
+                               621411 & codigo_act !=
+                               623312 & codigo_act !=
+                               624121 & codigo_act !=
+                               621412 & codigo_act !=
+                               621312)
+```
+
+```{r}
+hospitalesMexico <- hospitalesFiltered %>% count(cve_ent,entidad)
+hospitalesMexico <- hospitalesMexico[-c(2),]
+
+
+```
+
+### Creando subdata sets de las regiones de México.
+
+```{r}
+hospitalesCentroNorte <- filter(hospitales, entidad == "Aguascalientes"
+                                          | entidad == "Baja California Sur"
+                                          | entidad == "Colima"
+                                          | entidad == "Durango"
+                                          | entidad == "Jalisco"
+                                          | entidad == "Michoac\xe1n de Ocampo"
+                                          | entidad == "Nayarit"
+                                          | entidad == "San Luis Potos\xed"
+                                          | entidad == "Sinaloa"
+                                          | entidad == "Zacatecas")
+
+hospitalesCentro <- filter(hospitales, entidad == "Ciudad de M\xe9xico"
+                                    | entidad == "M\xe9xico"
+                                    | entidad == "Guanajuato"
+                                    | entidad == "Hidalgo"
+                                    | entidad == "Morelos"
+                                    | entidad == "Puebla"
+                                    | entidad == "Quer\xe9taro"
+                                    | entidad == "Tlaxcala")
+
+hospitalesNorte <- filter(hospitales, entidad == "Baja California" 
+                          | entidad == "Chihuahua"
+                          | entidad == "Coahuila de Zaragoza"
+                          | entidad == "Nuevo Le\xf3n"
+                          | entidad == "Sonora"
+                          | entidad == "Tamaulipas")
+
+hospitalesSur <- filter(hospitales, entidad == "Campeche"
+                                  | entidad == "Chiapas"
+                                  | entidad == "Guerrero"
+                                  | entidad == "Oaxaca"
+                                  | entidad == "Quintana Roo"
+                                  | entidad == "Tabasco"
+                                  | entidad == "Veracruz de Ignacio de la Llave"
+                                  | entidad == "Yucat\xe1n")
+```
+
+## Mapas de los hospitales en México y por región. 
+
+```{r, warning=FALSE, error=FALSE, message=FALSE}
+joint <- merge(hospitales,covid, by.x = "cve_ent", by.y = "cve_ent", all.x = TRUE, all.y = FALSE)
+jointCentroNorte <- merge(hospitalesCentroNorte,covid, by.x = "cve_ent", by.y = "cve_ent", all.x = TRUE, all.y = FALSE)
+jointCentro <- merge(hospitalesCentro,covid, by.x = "cve_ent", by.y = "cve_ent", all.x = TRUE, all.y = FALSE)
+jointNorte <- merge(hospitalesNorte,covid, by.x = "cve_ent", by.y = "cve_ent", all.x = TRUE, all.y = FALSE)
+jointSur <- merge(hospitalesSur,covid, by.x = "cve_ent", by.y = "cve_ent", all.x = TRUE, all.y = FALSE)
+
+
+qmplot(longitud, latitud, data = joint, colour = I('red'), size = I(0.8), darken = .3)
+qmplot(longitud, latitud, data = jointCentroNorte, colour = I('red'), size = I(0.8), darken = .3)
+qmplot(longitud, latitud, data = jointCentro, colour = I('red'), size = I(0.8), darken = .3)
+qmplot(longitud, latitud, data = jointNorte, colour = I('red'), size = I(0.8), darken = .3)
+qmplot(longitud, latitud, data = jointSur, colour = I('red'), size = I(0.8), darken = .3)
+```
+
+```{r}
+densidad <- readxl::read_excel("C:\\Users\\art191127\\Downloads\\Población_07.xlsx")
+superficie <- readxl::read_excel("C:\\Users\\art191127\\Downloads\\inegi_superficie_territorial.xlsx",sheet = "Distribución territorial")
+```
+
+### Indentificando densidad poblacional 
+
+```{r}
+superficie <- na.omit(superficie)
+colnames(superficie) <- c("Entidad federativa", "Municipio", "Superficie (Km2)", "Porcentaje de la superficie estatal","Demsidad de población (hab./km2)","Total de municipios o demarcaciones territoriales / localidades")
+superficie$`Entidad federativa` <- substr(superficie$`Entidad federativa`,1,2)
+superficie$Municipio <- substr(superficie$Municipio,1,3)
+
+superficie$cve_ent <- paste(superficie$`Entidad federativa`,superficie$Municipio,sep = "")
+
+hospitalesMexico <- merge(hospitalesMexico,superficie,by.x = "cve_ent", by.y = "cve_ent")
+hospitalesMexico <- merge(hospitalesMexico, covid %>% select(cve_ent, poblacion_2022), by.x = "cve_ent", by.y = "cve_ent")
+
+hospitalesMexico <- hospitalesMexico[-c(2457, 2458), ]
+
+hospitalesMexico$hospitalesKm2 <- hospitalesMexico$n/hospitalesMexico$`Superficie (Km2)`
+hospitalesMexico$hospitalespHabitantes <- (hospitalesMexico$n/hospitalesMexico$poblacion_2022)*10000
+```
+
+```{r warning=FALSE, echo=FALSE}
+library(foreign)
+library(spdep)
+library(spmoran)
+library(spatialreg)
+library(maptools)
+library(mapproj)
+library(sp)
+library(maps)
+library(rgeos)
+library(mapproj)
+library(RColorBrewer)
+library(rgdal)
+library(scales)
+library(ggsn)
+library(tigris)
+```
+
+
+```{r, warning=FALSE}
+map <- st_read("C:\\Users\\art191127\\Documents\\Tec de Monterrey\\Semestre 8\\Clase 2\\Saucedo\\shp_mx_mpios\\mx_mpios.shp")
+map_deprctd <- readShapePoly("C:\\Users\\art191127\\Documents\\Tec de Monterrey\\Semestre 8\\Clase 2\\Saucedo\\shp_mx_mpios\\mx_mpios.shp", IDvar = "IDUNICO", proj4string = CRS("+proj=longlat"), sf_use_s2(FALSE))
+```
+
+```{r}
+hospitalesMexico$cve_ent <- as.numeric(hospitalesMexico$cve_ent)
+merged_data <- merge(map,hospitalesMexico, by.x = "IDUNICO", by.y = "cve_ent", all.y = TRUE)
+```
+
+## Mapa: Cantidad de Hospitales cada 10 mil habitantes. 
+
+```{r}
+municipios <- ggplot() + 
+  geom_sf(data = merged_data, aes(fill = hospitalespHabitantes)) +
+  scale_fill_gradient(low = "#fff7ec", high = "#7F0000", limits = c(0.000009, 28))
+
+municipios
+
+ggsave("municipios3.png", plot = municipios, width = 16, height = 9, dpi = 320)
+```
+
+
+## Análisis exploratorio de la base de datos COVID
+
+#### Buscando NA´s
+
+Iniciamos con un análisis de NA´s que podrían estar presentes en la base de datos. 
+
+```{r}
+library(naniar)
+gg_miss_var(covid, show_pct=TRUE)
+```
+
+Existen muy pocos NA´s en la base de datos, por lo que simplemente serán omitidos. 
+
+#### Transformación básica de la base de datos
+
+Ahora, transformamos las columnas al tipo de dato que debe tener, además de crear dos nuevas columnas que tengan el total de casos de Covid por año. Y 
+
+```{r, warning=FALSE}
+covid1 <-covid
+covid1$casos2021 <- rowSums(covid[, 30:42])
+covid1$casos2020 <- rowSums(covid[, 19:29])
+covid1 <- covid1 %>% mutate_at(c("hogrem2015", "hogremjefmuj2015", "popnoafmed2015", "gini2015", "porcentaje_pob_pobreza", "porcentaje_pob_pobreza_ext", "porcentaje_pob_servicios_salud", "porcentaje_pob_acceso_ss", "popden2020"), as.numeric)
+covid1 <- na.omit(covid1)
+covid1$porcentaje_pob_pobreza <- covid1$porcentaje_pob_pobreza/100
+covid1$porcentaje_pob_acceso_ss <- covid1$porcentaje_pob_acceso_ss/100
+covid1$porcentaje_pob_pobreza_ext <- covid1$porcentaje_pob_pobreza_ext/100
+covid1$porcentaje_pob_servicios_salud <- covid1$porcentaje_pob_servicios_salud/100
+```
+
+### Gráfica de correlación entre variables en la base de datos. 
+
+```{r}
+library(dlookr)
+corr_covid <- covid1 %>% select(hogrem2015, hogremjefmuj2015, popnoafmed2015, gini2015, porcentaje_pob_pobreza, porcentaje_pob_pobreza_ext, porcentaje_pob_servicios_salud, porcentaje_pob_acceso_ss, popden2020, casos2020)
+correlate(corr_covid, hogrem2015, hogremjefmuj2015, popnoafmed2015, gini2015, porcentaje_pob_pobreza, porcentaje_pob_pobreza_ext, porcentaje_pob_servicios_salud, porcentaje_pob_acceso_ss, popden2020, casos2020) %>%  plot()
+```
+
+Como se puede apreciar en la anterior gráfica de correlación, las columnas casos2020, porcentaje_pob_pobreza y porcentaje_pob_acceso_ss, son las columnas que más correlación presentan, además de la pobreza extrema y densidad de población, por lo que estás serán las analizadas con más detalle. 
+
+Municipio se refiere ala división territorial administrativa que está regida por un ayuntamiento, por estado.
+
+Popden2020 se refiere a la concentración de población (densidad) en una locación geográfica; se utiliza para cuantificar información demográfica en relación a ecosistemas, salud, infraestructura y distintos patrones.
+
+Porcentaje_pob_pobreza explica en porcentaje, la pobreza de la población en las áreas especifidadas de México. Según el Consejo Nacional de Evaluación de la Política de Desarrollo Socia (CONEVAL),  la pobreza por ingresos se define por tres lineas. 
+La línea de pobreza alminentaría habla de la ncapacidad para obtener una canasta básica alimentaria, aquella de capacidades a la nsuficiencia del ingreso disponible para adquirir el valor de la canasta alimentaria y efectuar los gastos necesarios en salud y educación y finalmente la de patrimonio que habla de la insuficiencia de éstos dos asi como de vivienda, transporte y bienes y servicios. 
+
+Porcentaje_pob_pobreza_ext se refiere a la situación de pobreza extrema al tener tres o más carencias (de seis) del Índice de Privación Social y estar por debajo de la línea de bienestar (mínima). 
+
+Porcentaje_pob_servicios_salud se refiere al porcentaje de la población por área, que tiene acesso a servicios de salud pública y privada
+
+Porcentaje_pob_acceso_ss se refiere al porcentaje de la población que tiene acceso al seguro social.
+
+
+### Gráficas de Normalidad
+
+```{r}
+plot_normality(covid1, casos2020, porcentaje_pob_pobreza, porcentaje_pob_acceso_ss)
+```
+
+Para poder identificar la distribución de los datos en las variables de interés se hacen estás 12 gráficas, dando como resultado de solo la variable de casos2020 seguiría una distribución normal solo si se le aplica una transformación logarítmica. 
+
+### Análisis Bivariado entre Población con Pobreza y Casos2020
+
+```{r}
+target_var_1<-target_by(covid1, porcentaje_pob_pobreza)
+relationship_1<-relate(target_var_1,  casos2020)
+plot(relationship_1)
+```
+
+### Análisis Bivariado entre Accesso a SS y Casos2020
+
+```{r}
+target_var_2<-target_by(covid1, porcentaje_pob_acceso_ss)
+relationship_2<-relate(target_var_2, casos2020)
+plot(relationship_2)
+```
+
+### Gráfica: Relación entre pob_pobreza y accesso_ss en casos2020
+
+```{r}
+ggplot(covid1, aes(x=porcentaje_pob_pobreza, y=porcentaje_pob_acceso_ss, size=casos2020)) +
+  geom_point() +
+  scale_x_log10() 
+```
+
+Como se puede ver en esta última gráfica de exploración de los datos, entre menor es el acceso al Seguro Social y mayor la pobreza, incremente considerablemente la cantidad de casos de Covid, confirmando así lo que hemos visto en todas nuestras gráficas. Por lo tanto, las variables porcentaje_pob_pobreza y porcentaje_pob_pobreza son explicativas y nos pueden servir más adelante cuando veamos la distribución de hospitales en México.
+
+
+
+
+## SPATIAL WEIGHT MATRIX - CODELAG, CVE_ENT & IDUNICO
+
+Para iniciar con nuestro análisis de Autocorrelación Espacial, decidimos hacer 3 gráficas de Spatial Weight Matrix, donde se busca identificar el comportamiento espacial de los datos, en este caso en tipo 'rook' lo que permite identificar vecinos incluyendo las vértices comunes. Por lo tanto observamos 3 variables graficadas, CODELAG, CVE_ENT & IDUNICO.
+
+```{r, warning =FALSE, message=FALSE}
+lmat_c<-coordinates(map_deprctd)
+map.centroid_c<-coordinates(map_deprctd)  
+
+map.link_a_rook<-poly2nb(map,queen=F)
+map.linkW_a_rook<-nb2listw(map.link_a_rook, style="W")
+plot(map,border="blue",axes=TRUE,las=1)
+plot(map,col="grey",border=grey(0.11),axes=T,add=T) 
+plot(map.linkW_a_rook,coords=map.centroid_c,pch=19,cex=0.1,col="red",add=T)
+```
+
+Para cada variable, la distribución espacial se comporta de manera diferente, sin embargo, en CODELAG se puede notar un patrón mucho más claro. 
+
+# Parte 2 - En equipo
+
+```{r warning=FALSE, echo=FALSE}
+library(foreign)
+library(ggplot2)
+library(dplyr)
+library(regclass)
+library(mctest)
+library(lmtest)
+library(spdep)
+library(sf)
+library(spData)
+library(mapview)
+library(spatialreg)
+library(naniar)
+library(dlookr)
+library(caret)
+library(e1071)
+library(SparseM)
+library(Metrics)
+library(randomForest)
+library(rpart.plot)
+library(knitr)
+library(insight)
+library(rgeoda)
+library(rgeos)
+library(jtools)
+library(xgboost)
+library(DiagrammeR)
+library(effects)
+```
+
+## LINEAR REGRESSION ANALYSIS
+
+Ahora hacemos una regresión linear simple con la finalidad de poder identificar las variables con mayor significancia.
+
+```{r}
+covid$infectados <- rowSums(covid[,c("feb_2020", "march_2020","april_2020","may_2020","june_2020","july_2020","august_2020","sept_2020","oct_2020","nov_2020","dic_2020", "jan_2021", "feb_2021", "mar_2021","april_2021","may_2021","june_2021","july_2021","august_2021","sept_2021","oct_2021","nov_2021","dic_2021")])
+covid$cve_ent <- as.numeric(covid$cve_ent)
+hospitalesMexico <- merge(hospitalesMexico, covid %>% select(cve_ent, infectados), by.x = "cve_ent", by.y = "cve_ent")
+lm_model <- lm(infectados ~ n + `Superficie (Km2)` + `Porcentaje de la superficie estatal` + `Demsidad de población (hab./km2)` + `Total de municipios o demarcaciones territoriales / localidades` + poblacion_2022, data = hospitalesMexico)
+summary(lm_model)
+```
+
+### Residuals vs. Fits Plot Linear Model
+
+```{r, warning=FALSE}
+ggplot(hospitalesMexico, aes(x = exp(lm_model$fitted.values), y = infectados)) +
+  geom_point() +
+  stat_smooth() +
+  labs(x='Predicted Values', y='Actual Values', title='OLS Predicted vs. Actual Values')
+```
+
+### Multicollinearity Test
+
+```{r}
+# Multicollinearity
+library(regclass)
+VIF(lm_model)
+```
+
+En este caso, el Multicollinearity Test solamente nos indica que población tiene multicolinealidad. 
+
+### Heteroscedasticity Test
+
+```{r}
+# Heteroscedasticity
+library(lmtest)
+bptest(lm_model) #2.2 e^16 = FALSE
+```
+
+El p-value es menor a 0.05 por lo que se acepta HA y se concluye que hay heterocedasticidad.
+
+### RMSE linear model
+
+```{r}
+# What is the Prediction Root Mean Square Error (RMSE)? 
+# RMSE represents the average difference between the observed known outcome values in the test data and the predicted outcome values by the model. 
+# We’ll make predictions using the test data in order to evaluate the performance of our regression model.
+library(Metrics)
+prediction_lm_model <- lm_model %>% predict(hospitalesMexico)
+rmse(prediction_lm_model, hospitalesMexico$hospitalesKm2)
+```
+
+El modelo linear presenta un RMSE que podría ser considerado un poco alto, sin embargo, falta compararlo con otros modelos para identificar si este RMSE es bueno o malo. 
+
+## MACHINE LEARNING REGRESSION ANALYSIS
+## SUPPORT VECTOR REGRESSION
+
+```{r}
+fit.svm = svm(formula = infectados ~ n + `Superficie (Km2)` + `Porcentaje de la superficie estatal` + `Demsidad de población (hab./km2)` + `Total de municipios o demarcaciones territoriales / localidades` + poblacion_2022, data = hospitalesMexico, type = 'eps-regression', kernel = 'radial')
+
+summary(fit.svm)
+```
+
+Ahora, creamos otro modelo, en este caso usando Support Vector Regression.
+
+### Residuals vs. Fits Plot SVM Model
+
+```{r}
+# Create residual vs. fitted plot
+plot(fit.svm$fitted, fit.svm$residuals, main="SVM Residual vs. Fitted Values", xlab="Fitted Values", ylab="Residuals")
+abline(0,0)
+```
+
+Dado que en la gráfica los residuales presentan un comportamiento horizontal junto a la línea del 0, sugiere que hay homoscedasticity en este nuevo modelo. 
+
+### RMSE
+
+```{r}
+# RMSE represents the average difference between the observed known outcome values in the test data and the predicted outcome values by the model. 
+# The lower the RMSE, the better the model.
+library(stats)
+predicted_dv=predict(fit.svm, newdata = hospitalesMexico)
+rmse(predicted_dv, hospitalesMexico$infectados)
+```
+
+El RMSE de este modelo es menor al del moldeo linear, por lo que es mejor. 
+
+### Predicted vs Observed SVM plot
+
+```{r, warning=FALSE}
+# Lets plot predicted vs observed values of dependent variable 
+dv_svm<-data.frame(exp(fit.svm$fitted),hospitalesMexico$infectados)
+ggplot(dv_svm, aes(x = exp.fit.svm.fitted., y = hospitalesMexico.infectados)) +
+  geom_point() +
+  stat_smooth() +
+  labs(x='Predicted Values', y='Actual Values', title='SVM Predicted vs. Actual Values')
+```
+
+## SPATIAL REGRESSION ANALYSIS
+
+```{r}
+hospitalesMexico2 <- merge(map,hospitalesMexico, by.x = "IDUNICO",by.y = "cve_ent")
+
+lm_model_alt <- lm(infectados ~ n + `Superficie (Km2)` + `Porcentaje de la superficie estatal` + `Demsidad de población (hab./km2)` + `Total de municipios o demarcaciones territoriales / localidades` + poblacion_2022, data = hospitalesMexico)
+summary(lm_model_alt)
+```
+
+Creamos un modelo de regresión lineal simple para poder hacer el Moran´s statistic
+
+```{r eval=FALSE, include=FALSE}
+map2 <- map
+colnames(map2) <- c("CODELAG", "CVE_ENT","cve_ent","geometry")
+df1_not_in_df2 <- anti_join(map, hospitalesMexico, by = "IDUNICO")
+```
+
+```{r eval=FALSE, include=FALSE}
+hospice <- hospitalesMexico2 %>% filter(!IDUNICO %in% map)
+```
+
+### Global Moran
+
+```{r}
+library(spdep)
+
+# Extract the coefficients from the lm object
+coef_lm <- coef(lm_model_alt)
+
+# Subset the coefficients to only include the variables in the list
+subset_coef_lm <- coef_lm[names(coef_lm) %in% map.link_a_rook]
+
+
+
+lm.morantest(lm_model_alt, nb2listw(map.link_a_rook))
+```
+
+Ahora, con el resultado para la prueba de Global Moran, podemos identificar que existe una Autocorrelación Espacial Positiva, dado que el p-value es estadísticamente significativo y el Observed Moran I es mayor a 0.
+
+```{r, warning=FALSE}
+# Detecting (global) spatial autocorrelation - gini index (income inequality)
+
+covid$gini2015 <- as.numeric(covid$gini2015)
+covid$gini2015[is.na(covid$gini2015)] <- 0
+hospitalesMexico <- merge(hospitalesMexico,covid, by.x = "cve_ent", by.y = "cve_ent")
+```
+
+
+## SPATIAL CONNECTIVITY MATRIX PLOT
+
+```{r, message=FALSE, warning=FALSE}
+hospitalesMexico_centroid<-coordinates(map_deprctd)
+map_nb<-poly2nb(map_deprctd)
+hospitalesMexico_map.linkW<-nb2listw(map_nb, style="W")   
+plot(map_deprctd,border="blue",axes=FALSE,las=1, main="MX Spatial Connectivity Matrix")
+plot(map_deprctd,col="grey",border=grey(0.9),axes=T,add=T) 
+plot(hospitalesMexico_map.linkW,coords=hospitalesMexico_centroid,pch=19,cex=0.1,col="red",add=T)  
+```
+
+Al observar esta gráfica, podemos intuir que se tiene Autocorrelación Espacial Positiva, dado que hay sectores que se pueden distinguir por lo juntos o separados que están, aunque en este caso no parece existir mucha Autocorrelación. 
+
+```{r}
+# Detecting (global) spatial autocorrelation - gini index (income inequality)
+covid$gini2015 <- as.numeric(covid$gini2015)
+moran.mc(hospitalesMexico$gini2015,map.linkW_a_rook,nsim=9999) # Positive Spatial Autocorrelation and Statistically Significant.   
+```
+
+
+
+```{r}
+# Detecting (global) spatial autocorrelation - social gap index 
+moran.mc(hospitalesMexico$rezago_social,map.linkW_a_rook,nsim=9999) # Strongly Positive Spatial Autocorrelation and Statistically Significant. 
+```
+
+```{r, warning =FALSE}
+# Detecting (global) spatial autocorrelation - covid rate in 2020
+hospitalesMexico$porcentaje_pob_acceso_ss <- as.numeric(hospitalesMexico$porcentaje_pob_acceso_ss)
+hospitalesMexico$porcentaje_pob_acceso_ss <- hospitalesMexico$porcentaje_pob_acceso_ss/100
+hospitalesMexico$porcentaje_pob_acceso_ss[is.na(hospitalesMexico$porcentaje_pob_acceso_ss)] <- 0
+moran.mc(hospitalesMexico$porcentaje_pob_acceso_ss,map.linkW_a_rook,nsim=9999) # Strongly Positive Spatial Autocorrelation and Statistically Significant. 
+```
+
+#### Local Indicators of Spatial Autocorrelation (LISA) by estimating Moran's Index 
+
+#### Lets use GeoDa to conduct LISA
+
+#### GeoDa is a software to do data analysis by exploring and modeling spatial patterns
+
+```{r}
+# Lets import our georeferenced dataset
+map_mpios_mx<-st_read("C:\\Users\\art191127\\Documents\\Tec de Monterrey\\Semestre 8\\Clase 2\\Saucedo\\shp_mx_mpios\\mx_mpios.shp") 
+mpios_mx_covid <- read.csv("C:\\Users\\art191127\\Downloads\\covid19_data.csv")
+map_mpios_mx <- merge(map_mpios_mx, mpios_mx_covid, by.x = "IDUNICO", by.y = "IDUNICO")
+
+map_mpios_mx <- map_mpios_mx %>% mutate_at(vars(16:42), as.numeric)
+
+#map_mpios_mx$cvd2020 <- rowSums(map_mpios_mx[,c("feb_2020", "march_2020","april_2020","may_2020","june_2020","july_2020","august_2020","sept_2020","oct_2020","nov_2020","dic_2020")])
+
+#map_mpios_mx$cvd2021rowSums(map_mpios_mx[,c("jan_2021", "feb_2021", "mar_2021","april_2021","may_2021","june_2021","july_2021","august_2021","sept_2021","oct_2021","nov_2021","dic_2021")])
+```
+
+
+
+```{r}
+# create spatial weights matrix object (contiguity case) as per GEODA
+queen_w<-queen_weights(map_mpios_mx)
+```
+
+```{r}
+# Calculate Local Indicators of Spatial Autocorrelation - LISA as per GEODA   
+lisa_covid2020<-local_moran(queen_w, map_mpios_mx["covid2020"])
+lisa_covid2021<-local_moran(queen_w, map_mpios_mx["covid2021"]) 
+lisa_gini<-local_moran(queen_w, map_mpios_mx["gini2015"]) 
+lisa_sgi<-local_moran(queen_w, map_mpios_mx["socialgapindex"]) 
+```
+
+```{r}
+# Add cluster calculations to map's dataset 
+map_mpios_mx$cluster_covid2020<-as.factor(lisa_covid2020$GetClusterIndicators())
+levels(map_mpios_mx$cluster_covid2020)<-lisa_covid2020$GetLabels() ### clusters for covid19 cases in 2020
+```
+
+```{r}
+map_mpios_mx$cluster_covid2021<-as.factor(lisa_covid2021$GetClusterIndicators())
+levels(map_mpios_mx$cluster_covid2021)<-lisa_covid2021$GetLabels() ### clusters for covid19 cases in 2021
+```
+
+```{r}
+map_mpios_mx$cluster_gini<-as.factor(lisa_gini$GetClusterIndicators())
+levels(map_mpios_mx$cluster_gini)<-lisa_gini$GetLabels() ### clusters for gini index in 2015
+```
+
+```{r}
+map_mpios_mx$cluster_sgi<-as.factor(lisa_sgi$GetClusterIndicators())
+levels(map_mpios_mx$cluster_sgi)<-lisa_sgi$GetLabels() ### clusters for social gap index in 2020
+```
+
+#### **Visualizing Clusters of Selected Variabls using GeoDa View** 
+
+### COVID 19 CASES IN 2020
+
+```{r}
+ggplot(data=map_mpios_mx) + 
+  geom_sf(aes(fill=cluster_covid2020)) + 
+  ggtitle(label="COVID-19 in 2020", subtitle="Confirmed Cases")
+```
+
+En esta gráfica inicial, podemos ver los casos confirmados para el 2020 de covid 19, dado la naturaleza de esta primera gráfica, la mayor parte nos muestra 'Not significant' lo que indica que no hay autocorrelación espacial de ningún tipo. 
+
+### COVID 19 CASES IN 2021
+
+```{r}
+ggplot(data=map_mpios_mx) + 
+  geom_sf(aes(fill=cluster_covid2021)) + 
+  ggtitle(label="COVID-19 in 2021", subtitle="Confirmed Cases")
+```
+
+En la segunda gráfica sucede algo muy similar que en la primera, dado que usamos los casos totales del 2021.
+
+### COVID 19 $ GINI INDEX 2015
+
+```{r}
+ggplot(data=map_mpios_mx) +
+  geom_sf(aes(fill=cluster_gini)) + 
+  ggtitle(label="Gini Index in 2015", subtitle="Measure of Income Inequality")
+```
+
+Ahora usamos el GINI INDEX para tratar de identificar algún tipo de correlación entre los casos y el index, sin embargo, la gran mayor parte dio no significativa, dejando solo algunas pequeñas zonas que parecen indicar correlación espacial positiva. 
+
+### COVID 19 & SGI
+
+```{r}
+ggplot(data=map_mpios_mx) + 
+  geom_sf(aes(fill=cluster_sgi)) + 
+  ggtitle(label="Social Gap Index in 2020", subtitle="Social deprivation of education, health, household services, and housing spaces)")
+```
+
+En la cuarta gráfica nos encontramos con resultados más concluyentes, donde se puede observar como casi todo el norte de México cuenta con correlación espacial positiva, relacionando así, la cantidad de casos de COVID 19 con el SGI en esta zona del país. 
+
+### **Bivariate Moran's I - How is the local / regional spatial relationship between 2 variables?** 
+```{r}
+lisa_bi<-local_bimoran(queen_w,map_mpios_mx[c('covid2021','pop_obesity')])
+bivariate_m<-lisa_values(lisa_bi)
+```
+
+```{r}
+map_mpios_mx$bivariate<-as.factor(lisa_bi$GetClusterIndicators())
+levels(map_mpios_mx$bivariate)<-lisa_bi$GetLabels() ### bivariate moran
+```
+
+### COVID-19 Cases & Population with Obesity in 2021
+
+```{r}
+# visualize Bivariate Moran's i using GeoDa view 
+ggplot(data=map_mpios_mx) +
+  geom_sf(aes(fill=bivariate)) + 
+  ggtitle(label = "COVID-19 Cases & Population with Obesity in 2021", subtitle = "Bivariate Local's Moran's I")
+```
+
+En está gráfica, se hizo un análisis local en México para determinar autocorrelación junto a la obesidad y como se puede observar, esta vez, parece ser que una buena parte del norte de México cuenta con autocorrelación espacial negativa, siendo solo las Bajas Californias las que indican una positiva, por lo que sería interesante investigar que paso en esta zona en particular del país. 
+
+```{r}
+lisa_bi<-local_bimoran(queen_w,map_mpios_mx[c('covid2021','pop_diabetes')])
+bivariate_m<-lisa_values(lisa_bi)
+```
+
+```{r}
+map_mpios_mx$bivariate<-as.factor(lisa_bi$GetClusterIndicators())
+levels(map_mpios_mx$bivariate)<-lisa_bi$GetLabels() ### bivariate moran
+```
+
+### COVID-19 Cases & Population with Diabetes in 2021
+
+```{r}
+# visualize Bivariate Moran's i using GeoDa view 
+ggplot(data=map_mpios_mx) +
+  geom_sf(aes(fill=bivariate)) + 
+  ggtitle(label = "COVID-19 Cases & Population with Diabetes in 2021", subtitle = "Bivariate Local's Moran's I")
+```
+
+Finalmente, en nuestra útltima gráfica, no encontramos zonas con algún tipo de correlación predominante, siendo en su mayoría no significante, y en algunas zonas del norte un poco de autocorrelación negativa. Por lo que se puede intuir que la Diabetes no formo parte especial en la propagación de los contagios. 
+
+```{r}
+lisa_bi<-local_bimoran(queen_w,map_mpios_mx[c('covid2021','socialgapindex')])
+bivariate_m<-lisa_values(lisa_bi)
+```
+
+```{r}
+map_mpios_mx$bivariate<-as.factor(lisa_bi$GetClusterIndicators())
+levels(map_mpios_mx$bivariate)<-lisa_bi$GetLabels() ### bivariate moran
+```
+
+```{r}
+# visualize Bivariate Moran's i using GeoDa view 
+municipiosp <- ggplot(data=map_mpios_mx) +
+  geom_sf(aes(fill=bivariate)) + 
+  ggtitle(label = "COVID-19 Cases & Socially Marginalized Municipalities in 2021", subtitle = "Bivariate Local's Moran's I")
+
+ggsave("municipiosp.png", plot = municipiosp, width = 16, height = 9, dpi = 320)
+```
