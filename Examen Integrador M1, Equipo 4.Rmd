@@ -1,0 +1,314 @@
+---
+title: "Examen Integrador 2"
+author: "José Antonio González Gutiérrez"
+date: "2023-05-11"
+output: html_document
+---
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(sf)
+library(tmap)
+library(spdep)
+library(rgdal)
+library(tidyverse)
+library(tigris)
+library(mapview)
+library(GWmodel)    
+library(regclass)
+library(viridis)
+library(grid)
+library(ggmap)
+library(maptools)
+library(rgeoda)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+data(columbus) ### dataset
+columbus_shp <- readShapePoly(system.file("etc/shapes/columbus.shp",package="spdep"))
+### shapefile
+col.gal.nb <- read.gal(system.file("etc/weights/columbus.gal", package="spdep")) 
+```
+
+## Parte 1 - Análisis Espacial de Datos
+En esta parte veremos con qué variables estaremos trabajando, y si tienen las distribuciones esperadas (normal).
+
+```{r}
+columbus <- columbus %>% select(-1)
+```
+
+```{r}
+#1. Correlación entre variables
+library(dlookr)
+corr_columbus <- columbus %>% select(AREA, PERIMETER, HOVAL, INC, CRIME, OPEN, PLUMB, DISCBD)
+correlate(corr_columbus, AREA, PERIMETER, HOVAL, INC, CRIME, OPEN, PLUMB, DISCBD) %>% plot()
+```
+
+```{r}
+plot_normality(columbus, AREA, PERIMETER, HOVAL, INC, CRIME, OPEN, PLUMB, DISCBD)
+```
+
+Por lo que vemos, todas las variables tienen distribución normal, excepto por las variables "OPEN" y "PLUMB". Para volverlas normales, a OPEN le podemos hacer Raíz Cuadrada, y a PLUMB le podemos hacer LOG para la normalización.
+
+```{r}
+#olumbus$OPEN <- sqrt(columbus$OPEN)
+#columbus$PLUMB <- log(columbus$PLUMB)
+```
+
+
+```{r}
+library(ggplot2)
+ggplot(columbus, aes(x = DISCBD, y = INC, size = HOVAL)) +  geom_point() + scale_x_log10()
+```
+
+## Paso 2 - SWM
+
+```{r Queen & Rook}
+swm_queen <- poly2nb(columbus_shp, queen = TRUE)
+swm_rook  <- poly2nb(columbus_shp, queen = FALSE)
+
+## Standardized Queen & Rook Spatial Connectivity Matrices
+rswm_queen <- nb2listw(swm_queen, style = "W", zero.policy = TRUE)
+rswm_rook  <- nb2listw(swm_rook, style = "W", zero.policy = TRUE)
+
+columbus_shp$sp_HOVAL<-lag.listw(rswm_queen,columbus_shp$HOVAL,zero.policy=TRUE) 
+```
+
+```{r, warning=FALSE}
+qtm(columbus_shp, "HOVAL")
+qtm(columbus_shp, "sp_HOVAL")
+```
+
+
+```{r}
+moran.test(columbus_shp$HOVAL, listw = rswm_queen, zero.policy = TRUE, na.action = na.omit)
+
+```
+
+```{r}
+moran.test(columbus_shp$CRIME, listw = rswm_queen, zero.policy = TRUE, na.action = na.omit)
+```
+
+```{r}
+moran.test(columbus_shp$INC, listw = rswm_queen, zero.policy = TRUE, na.action = na.omit)
+```
+
+```{r}
+moran.test(columbus_shp$DISCBD, listw = rswm_queen, zero.policy = TRUE, na.action = na.omit)
+```
+
+Las tres variables elegidas + la variable dependiente resultaron tener autocorrelación espacial positiva.
+
+### Local Spatial Analysis
+
+```{r}
+localMoranHOVAL <- as.data.frame(localmoran(columbus_shp$HOVAL, listw = rswm_queen, zero.policy = TRUE, na.action = na.omit))
+
+localMoranCRIME <- as.data.frame(localmoran(columbus_shp$CRIME, listw = rswm_queen, zero.policy = TRUE, na.action = na.omit))
+
+localMoranINC <- as.data.frame(localmoran(columbus_shp$INC, listw = rswm_queen, zero.policy = TRUE, na.action = na.omit))
+
+localMoranDist <- as.data.frame(localmoran(columbus_shp$DISCBD, listw = rswm_queen, zero.policy = TRUE, na.action = na.omit))
+```
+
+```{r}
+columbus.tr<-sf::st_read(system.file("etc/shapes/columbus.shp",package="spdep")[1])
+columbus.tr<-as(columbus.tr, "Spatial")
+columbus_nb<-poly2nb(columbus.tr)
+mapview(columbus.tr, zcol="HOVAL") 
+```
+
+```{r}
+columbus_map_sf<-read_sf(system.file("etc/shapes/columbus.shp",package="spdep"))
+queen_w<-queen_weights(columbus_map_sf)
+```
+
+```{r}
+columbus_map_centroid<-coordinates(columbus.tr) 
+columbus_map.linkW<-nb2listw(columbus_nb, style="W")   
+plot(columbus.tr,border="blue",axes=FALSE,las=1, main="Columbus Spatial Connectivity Matrix")
+plot(columbus.tr,col="grey",border=grey(0.9),axes=T,add=T) 
+plot(columbus_map.linkW,coords=columbus_map_centroid,pch=19,cex=0.1,col="red",add=T)  
+```
+
+```{r}
+lisa_MEDV<-local_moran(queen_w, columbus_map_sf["HOVAL"]) 
+
+columbus_map_sf$HOVAL_MEDV<-as.factor(lisa_MEDV$GetClusterIndicators())
+levels(columbus_map_sf$HOVAL_MEDV)<-lisa_MEDV$GetLabels()
+```
+
+```{r}
+ggplot(data=columbus_map_sf) +
+  geom_sf(aes(fill=HOVAL_MEDV)) + 
+  ggtitle(label = "Median Values of Housing Units", subtitle = "Columbus Housing Market")
+```
+
+```{r}
+lisa_MEDV<-local_moran(queen_w, columbus_map_sf["INC"]) 
+
+columbus_map_sf$INC_MEDV<-as.factor(lisa_MEDV$GetClusterIndicators())
+levels(columbus_map_sf$INC_MEDV)<-lisa_MEDV$GetLabels()
+
+ggplot(data=columbus_map_sf) +
+  geom_sf(aes(fill=INC_MEDV)) + 
+  ggtitle(label = "Median Income", subtitle = "Columbus Housing Market")
+```
+
+```{r}
+lisa_MEDV<-local_moran(queen_w, columbus_map_sf["CRIME"]) 
+
+columbus_map_sf$CRIME_MEDV<-as.factor(lisa_MEDV$GetClusterIndicators())
+levels(columbus_map_sf$CRIME_MEDV)<-lisa_MEDV$GetLabels()
+
+ggplot(data=columbus_map_sf) +
+  geom_sf(aes(fill=CRIME_MEDV)) + 
+  ggtitle(label = "Median Crime", subtitle = "Columbus Housing Market")
+```
+
+```{r}
+lisa_MEDV<-local_moran(queen_w, columbus_map_sf["DISCBD"]) 
+
+columbus_map_sf$DISCBD_MEDV<-as.factor(lisa_MEDV$GetClusterIndicators())
+levels(columbus_map_sf$DISCBD_MEDV)<-lisa_MEDV$GetLabels()
+
+ggplot(data=columbus_map_sf) +
+  geom_sf(aes(fill=DISCBD_MEDV)) + 
+  ggtitle(label = "Median Distance", subtitle = "Columbus Housing Market")
+```
+
+```{r}
+lisa_MEDV<-local_moran(queen_w, columbus_map_sf["PLUMB"]) 
+
+columbus_map_sf$PLUMB_MEDV<-as.factor(lisa_MEDV$GetClusterIndicators())
+levels(columbus_map_sf$PLUMB_MEDV)<-lisa_MEDV$GetLabels()
+
+ggplot(data=columbus_map_sf) +
+  geom_sf(aes(fill=PLUMB_MEDV)) + 
+  ggtitle(label = "Median Plumb", subtitle = "Columbus Housing Market")
+```
+
+
+
+```{r}
+quadr_data <- localMoranHOVAL$quadr
+```
+
+
+## Paso 3 - 
+
+
+```{r}
+lm_sp <- lm(HOVAL ~ AREA + PERIMETER + INC + CRIME + OPEN + PLUMB + DISCBD, data = columbus)
+summary(lm_sp)
+```
+
+```{r}
+sqrt(mean((columbus$HOVAL - lm_sp$fitted.values)^2))
+```
+
+
+```{r}
+lm_sp_auto <- lm(log(HOVAL) ~ AREA + PERIMETER + INC + CRIME + OPEN^2 + log(PLUMB) + DISCBD, data = columbus)
+summary(lm_sp_auto)
+```
+
+```{r}
+sqrt(mean((columbus$HOVAL - exp(lm_sp_auto$fitted.values))^2))
+```
+
+```{r}
+moran.test(exp(lm_sp_auto$residuals), rswm_queen)
+```
+
+NO Está bien especificado el modelo: Es necesario modelos espaciales 
+
+
+
+#### 
+
+### DURBIN
+
+```{r}
+spatial_durbin <- lagsarlm(log(HOVAL) ~ AREA + PERIMETER + INC + CRIME + OPEN^2 + log(PLUMB) + DISCBD, data = columbus, rswm_queen, type = 'mixed', Durbin = TRUE)
+summary(spatial_durbin)
+```
+
+```{r}
+sqrt(mean((columbus$HOVAL - exp(spatial_durbin$fitted.values))^2))
+```
+
+```{r}
+moran.test(exp(spatial_durbin$residuals), rswm_queen)
+```
+
+
+
+
+### GWR
+
+
+```{r}
+# Kernel bandwidth
+bw1 <- bw.gwr(HOVAL ~ AREA + PERIMETER + INC + CRIME + OPEN + PLUMB + DISCBD, 
+             approach = "AIC", adaptive = T, data=columbus_shp)
+```
+
+
+```{r}
+m.gwr <- gwr.basic(log(HOVAL) ~ AREA + PERIMETER + INC + CRIME + OPEN^2 + log(PLUMB) + DISCBD, adaptive = T, data = columbus_shp, bw = bw1) 
+m.gwr
+```
+
+```{r}
+sqrt(mean((columbus_shp$HOVAL - m.gwr$fitted.values)^2))
+```
+
+```{r}
+gwr_data <- m.gwr$SDF
+```
+
+
+```{r}
+moran.test(exp(gwr_data$residual), rswm_queen)
+```
+
+
+
+
+## Paso 4
+
+
+###  Multicolinealidad
+
+```{r}
+VIF(lm_sp_auto)
+```
+
+Con la prueba de multicolinearidad con el modelo lineal simple, confirmamos que área y perímetro están demasiado correlacionadas (Por buena razón, ambas son directamente derivadas del tamaño de la casa y se sacan con la misma fórmula), por lo que no es bueno tenerlas en el modelo. Fuera de eso, todas las otras variables están en un rango aceptable.
+
+### LMlag
+
+```{r}
+lm.LMtests(lm_sp_auto,rswm_queen,test=c("RLMlag"))
+```
+
+### LMerr
+
+```{r}
+lm.LMtests(lm_sp_auto,rswm_queen,test=c("RLMerr"))
+```
+
+
+## Paso 5
+
+```{r}
+gwr_sf = st_as_sf(m.gwr$SDF)
+```
+
+```{r}
+gwr_sf$y_predicted <- exp(gwr_sf$yhat)
+#mapview(gwr_sf, zcol="y_predicted", col.regions=brewer.pal(5, "Oranges"))
+tm_shape(gwr_sf) +
+  tm_polygons(col = "yhat", palette="YlOrRd", style="quantile", n=8, title="Rate per 10,0000") +
+   tm_layout(title= 'COVID19 Rate',  title.position = c('right', 'top'))
+```
